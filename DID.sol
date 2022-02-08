@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.8.10;
+pragma solidity 0.8.11;
 
 abstract contract OwnerHelper {
     address private owner;
@@ -59,10 +59,8 @@ abstract contract IssuerHelper is OwnerHelper {
 
 contract CredentialBox is IssuerHelper {
     uint8 private idCount;
-    uint8 private vaccineEnumCount = 4;
-    uint8 private conditionEnumCount = 4;
 
-    mapping(uint8 => string) private vaccineEnum;
+    mapping(uint8 => string) private vaccineTypeEnum;
     mapping(uint8 => string) private conditionEnum;
 
     struct Credential {
@@ -70,23 +68,18 @@ contract CredentialBox is IssuerHelper {
         address issuer;
         uint8 vaccineType;
         uint8 vaccinatedCondition;
-        string value;
+        string token;
         uint256 createDate;
     }
 
     mapping(address => Credential) private credentials;
 
-    modifier validateType(uint8 _type, uint8 _count) {
-        require(_type > _count, "invaild type");
-        _;
-    }
-
     constructor() {
         idCount = 1;
-        vaccineEnum[0] = "Moderna";
-        vaccineEnum[1] = "Pfizer";
-        vaccineEnum[2] = "Janssen";
-        vaccineEnum[3] = "Astrazeneca";
+        vaccineTypeEnum[0] = "Moderna";
+        vaccineTypeEnum[1] = "Pfizer";
+        vaccineTypeEnum[2] = "Janssen";
+        vaccineTypeEnum[3] = "Astrazeneca";
         conditionEnum[0] = "Normal";
         conditionEnum[1] = "Mild";
         conditionEnum[2] = "Severe";
@@ -104,7 +97,7 @@ contract CredentialBox is IssuerHelper {
         credential.issuer = msg.sender;
         credential.vaccineType = _vaccineType;
         credential.vaccinatedCondition = 0;
-        credential.value = _token;
+        credential.token = _token;
         credential.createDate = block.timestamp;
 
         idCount += 1;
@@ -117,59 +110,59 @@ contract CredentialBox is IssuerHelper {
         view
         returns (Credential memory)
     {
+        require(
+            credentials[_vaccinatedAddress].id != 0,
+            "not claimed credential address"
+        );
         return credentials[_vaccinatedAddress];
     }
 
     function addVaccineType(uint8 _type, string calldata _value)
         public
         onlyIssuer
-        validateType(_type, vaccineEnumCount)
         returns (bool)
     {
-        require(bytes(vaccineEnum[_type]).length == 0, "existed type");
-        vaccineEnum[_type] = _value;
-        vaccineEnumCount += 1;
+        require(
+            bytes(vaccineTypeEnum[_type]).length == 0,
+            "existed type number"
+        );
+        vaccineTypeEnum[_type] = _value;
         return true;
     }
 
-    function getVaccineType(uint8 _type)
-        public
-        view
-        validateType(_type, vaccineEnumCount)
-        returns (string memory)
-    {
-        return vaccineEnum[_type];
+    function getVaccineType(uint8 _type) public view returns (string memory) {
+        require(
+            bytes(vaccineTypeEnum[_type]).length != 0,
+            "invaild type number"
+        );
+        return vaccineTypeEnum[_type];
     }
 
-    function addVaccinatedCondition(uint8 _type, string calldata _value)
+    function addCondition(uint8 _type, string calldata _value)
         public
         onlyIssuer
-        validateType(_type, conditionEnumCount)
         returns (bool)
     {
-        require(bytes(conditionEnum[_type]).length == 0);
+        require(bytes(conditionEnum[_type]).length == 0, "existed type number");
         conditionEnum[_type] = _value;
-        conditionEnumCount += 1;
         return true;
     }
 
-    function getVaccinatedCondition(uint8 _type)
-        public
-        view
-        validateType(_type, conditionEnumCount)
-        returns (string memory)
-    {
+    function getCondition(uint8 _type) public view returns (string memory) {
+        require(bytes(conditionEnum[_type]).length != 0, "invaild type number");
         return conditionEnum[_type];
     }
 
     function changeVaccinatedCondition(address _vaccinatedAddress, uint8 _type)
         public
         onlyIssuer
-        validateType(_type, conditionEnumCount)
         returns (bool)
     {
-        require(credentials[_vaccinatedAddress].id != 0);
-        require(bytes(conditionEnum[_type]).length != 0);
+        require(
+            credentials[_vaccinatedAddress].id != 0,
+            "not claimed credential address"
+        );
+        require(bytes(conditionEnum[_type]).length != 0, "invaild type number");
         credentials[_vaccinatedAddress].vaccinatedCondition = _type;
         return true;
     }
