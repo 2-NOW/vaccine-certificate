@@ -72,7 +72,13 @@ contract CredentialBox is IssuerHelper {
         uint256 createDate;
     }
 
-    mapping(address => Credential) private credentials;
+    struct RecentCredential {
+        uint8 recentCredentialCount;
+        uint8 recentVaccineType;
+    }
+
+    mapping(address => RecentCredential) private recentCredentials;
+    mapping(address => mapping(uint8 => Credential)) private credentials;
 
     constructor() {
         idCount = 1;
@@ -89,14 +95,21 @@ contract CredentialBox is IssuerHelper {
     function claimCredential(
         address _vaccinatedAddress,
         uint8 _vaccineType,
+        uint8 _vaccinatedConditionType,
         string calldata _token
     ) public onlyIssuer returns (bool) {
-        Credential storage credential = credentials[_vaccinatedAddress];
-        require(credential.id == 0);
+        RecentCredential storage recentCredential = recentCredentials[_vaccinatedAddress];
+        uint8 newCredentialId = recentCredentials[_vaccinatedAddress].recentCredentialCount;
+        Credential storage credential = credentials[_vaccinatedAddress][newCredentialId];
+        require(credential.id == 0, "already claimed credential");
+
+        recentCredential.recentCredentialCount += 1;
+        recentCredential.recentVaccineType = _vaccineType;
+
         credential.id = idCount;
         credential.issuer = msg.sender;
         credential.vaccineType = _vaccineType;
-        credential.vaccinatedCondition = 0;
+        credential.vaccinatedCondition = _vaccinatedConditionType;
         credential.token = _token;
         credential.createDate = block.timestamp;
 
@@ -105,16 +118,26 @@ contract CredentialBox is IssuerHelper {
         return true;
     }
 
-    function getCredential(address _vaccinatedAddress)
+    function getRecentShotCount(address _vaccinatedAddress) public view returns (uint8) {
+        require(recentCredentials[_vaccinatedAddress].recentCredentialCount != 0, "not clamed yet");
+        return recentCredentials[_vaccinatedAddress].recentCredentialCount;
+    }
+
+    function getRecentVaccineType(address _vaccinatedAddress) public view returns (uint8) {
+        require(recentCredentials[_vaccinatedAddress].recentCredentialCount != 0, "not clamed yet");
+        return recentCredentials[_vaccinatedAddress].recentVaccineType;
+    }
+
+    function getCredential(address _vaccinatedAddress, uint8 _shotCount)
         public
         view
         returns (Credential memory)
     {
         require(
-            credentials[_vaccinatedAddress].id != 0,
+            credentials[_vaccinatedAddress][_shotCount].id != 0,
             "not claimed credential address"
         );
-        return credentials[_vaccinatedAddress];
+        return credentials[_vaccinatedAddress][_shotCount];
     }
 
     function addVaccineType(uint8 _type, string calldata _value)
@@ -153,17 +176,17 @@ contract CredentialBox is IssuerHelper {
         return conditionEnum[_type];
     }
 
-    function changeVaccinatedCondition(address _vaccinatedAddress, uint8 _type)
+    function changeVaccinatedCondition(address _vaccinatedAddress, uint8 _type, uint8 _shotCount)
         public
         onlyIssuer
         returns (bool)
     {
         require(
-            credentials[_vaccinatedAddress].id != 0,
+            credentials[_vaccinatedAddress][_shotCount].id != 0,
             "not claimed credential address"
         );
         require(bytes(conditionEnum[_type]).length != 0, "invaild type number");
-        credentials[_vaccinatedAddress].vaccinatedCondition = _type;
+        credentials[_vaccinatedAddress][_shotCount].vaccinatedCondition = _type;
         return true;
     }
 }
